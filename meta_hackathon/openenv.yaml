@@ -1,0 +1,84 @@
+# openenv.yaml — Meta OpenEnv Hackathon Specification
+name: sql-repair-env
+version: "1.0.0"
+description: >
+  DBOps Agent Environment: An interactive SQLite-backed environment where an AI
+  agent acts as a Database Reliability Engineer. Given a broken SQL query, the
+  agent must inspect the schema, test fixes, and submit a repaired query that
+  produces the exact target output.
+
+author: hackathon-submission
+tags:
+  - openenv
+  - sql
+  - database
+  - agent-eval
+  - code-repair
+
+observation_space:
+  type: object
+  model: SQLObservation
+  fields:
+    current_schema:
+      type: string
+      description: DDL of all tables; populated on INSPECT_SCHEMA action
+    target_output_preview:
+      type: string
+      description: Human-readable description or preview of the expected result
+    last_execution_status:
+      type: string
+      enum: [SUCCESS, SYNTAX_ERROR, LOGIC_ERROR, PENDING]
+    last_query_result:
+      type: string
+      nullable: true
+      description: JSON-encoded rows from last query execution, or error trace
+    step_reward:
+      type: number
+      description: Reward signal for the last action taken
+
+action_space:
+  type: object
+  model: SQLAction
+  fields:
+    action_type:
+      type: string
+      enum: [INSPECT_SCHEMA, TEST_QUERY, SUBMIT_FINAL_QUERY]
+      description: The type of action the agent wants to take
+    sql_command:
+      type: string
+      nullable: true
+      description: SQL string to execute; required for TEST_QUERY and SUBMIT_FINAL_QUERY
+
+tasks:
+  - id: easy_syntax_repair
+    difficulty: easy
+    description: Fix table name typo and SQL keyword typo in a SELECT statement
+  - id: medium_join_repair
+    difficulty: medium
+    description: Replace INNER JOIN with LEFT JOIN and add COALESCE for users with no purchases
+  - id: hard_window_function
+    difficulty: hard
+    description: Fix complex aggregation using CTEs and RANK() window functions
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+
+episode:
+  max_steps: 20
+  termination: SUBMIT_FINAL_QUERY action or max_steps reached
+
+reward:
+  inspect_schema: +0.05
+  test_query_error: -0.10
+  test_query_wrong: +0.10
+  submit_final: grader_score (0.0 to 1.0)
+  step_penalty: -0.01
+
+runtime:
+  memory: 8GB
+  cpu: 2
+  max_episode_minutes: 20
+  framework: fastapi
+  database: sqlite3 in-memory
