@@ -159,11 +159,8 @@ def run_agent(task_id):
             f"error={type(e).__name__}:{str(e)}"
         )
         sys.stdout.flush()
-        sys.exit(1)
+        return
 
-# ---------------------------------------------------------------------------
-# Entrypoint
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     run_agent(TASK_ID)
