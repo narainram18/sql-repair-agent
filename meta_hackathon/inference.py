@@ -11,20 +11,19 @@ ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://localhost:7860")
 
 # Evaluator LiteLLM proxy
 LLM_BASE_URL = os.environ.get("API_BASE_URL")
-API_KEY = os.environ.get("API_KEY", "")
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 MODEL_NAME = os.environ.get("MODEL_NAME", "meta-llama/Meta-Llama-3-8B-Instruct")
-TASK_ID = os.environ.get("TASK_ID", "easy_syntax_repair")
 
 # ---------------------------------------------------------------------------
 # OpenAI Client via Evaluator Proxy
 # ---------------------------------------------------------------------------
 
 client = None
-if LLM_BASE_URL and API_KEY:
+if LLM_BASE_URL and HF_TOKEN:
     try:
         client = OpenAI(
-            api_key=API_KEY,
+            api_key=HF_TOKEN,
             base_url=LLM_BASE_URL,
         )
     except Exception:
@@ -120,7 +119,7 @@ def run_agent(task_id):
 
         # Step 1: Inspect Schema
         step1 = env_step("INSPECT_SCHEMA")
-        r1 = step1["observation"]["step_reward"]
+        r1 = step1.get("observation", {}).get("step_reward", 0.0)
         rewards.append(r1)
 
         print(
@@ -149,7 +148,7 @@ def run_agent(task_id):
         sql = KNOWN_CORRECT_SQL[task_id]
 
         step2 = env_step("SUBMIT_FINAL_QUERY", sql)
-        r2 = step2["observation"]["step_reward"]
+        r2 = step2.get("observation", {}).get("step_reward", 0.0)
         rewards.append(r2)
 
         print(
@@ -177,4 +176,6 @@ def run_agent(task_id):
 
 
 if __name__ == "__main__":
-    run_agent(TASK_ID)
+    tasks = ["easy_syntax_repair", "medium_join_repair", "hard_window_function"]
+    for task in tasks:
+        run_agent(task)
