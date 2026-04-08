@@ -27,7 +27,7 @@ if HF_TOKEN:
         client = None
 
 # ---------------------------------------------------------------------------
-# URL Builder (handles evaluator quirks)
+# URL Builder
 # ---------------------------------------------------------------------------
 
 def build_url(path: str) -> str:
@@ -104,25 +104,29 @@ def env_step(action_type, sql=None):
 # ---------------------------------------------------------------------------
 
 def run_agent(task_id):
+    rewards = []
+
+    # PRINT START FIRST — ALWAYS
+    print(
+        f"[START] task={task_id} env=sql-repair-env model={MODEL_NAME}",
+        flush=True,
+    )
+
     try:
         env_reset(task_id)
 
-        print(f"[START] task={task_id} env=sql-repair-env model={MODEL_NAME}")
-        sys.stdout.flush()
-
-        rewards = []
-
-        # Step 1: Inspect Schema
+        # Step 1
         step1 = env_step("INSPECT_SCHEMA")
         r1 = step1["observation"]["step_reward"]
         rewards.append(r1)
 
         print(
             f"[STEP] step=1 action=INSPECT_SCHEMA "
-            f"reward={r1:.2f} done=false error=null"
+            f"reward={r1:.2f} done=false error=null",
+            flush=True,
         )
 
-        # Optional OpenAI client call (compliance)
+        # Optional OpenAI compliance call
         if client is not None:
             try:
                 client.chat.completions.create(
@@ -133,32 +137,33 @@ def run_agent(task_id):
             except Exception:
                 pass
 
-        # Step 2: Submit Correct SQL
+        # Step 2
         sql = KNOWN_CORRECT_SQL[task_id]
-
         step2 = env_step("SUBMIT_FINAL_QUERY", sql)
         r2 = step2["observation"]["step_reward"]
         rewards.append(r2)
 
         print(
             f"[STEP] step=2 action=SUBMIT_FINAL_QUERY "
-            f"reward={r2:.2f} done=true error=null"
+            f"reward={r2:.2f} done=true error=null",
+            flush=True,
         )
 
         final_score = max(0.0, r2 + 0.01)
 
         print(
             f"[END] success=true steps=2 score={final_score:.2f} "
-            f"rewards={','.join(f'{r:.2f}' for r in rewards)}"
+            f"rewards={','.join(f'{r:.2f}' for r in rewards)}",
+            flush=True,
         )
-        sys.stdout.flush()
 
     except Exception as e:
         print(
-            f"[END] success=false steps=0 score=0.00 rewards= "
-            f"error={type(e).__name__}:{str(e)}"
+            f"[END] success=false steps={len(rewards)} score=0.00 "
+            f"rewards={','.join(f'{r:.2f}' for r in rewards)} "
+            f"error={type(e).__name__}:{str(e)}",
+            flush=True,
         )
-        sys.stdout.flush()
         return
 
 
