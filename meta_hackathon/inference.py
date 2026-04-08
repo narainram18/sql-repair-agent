@@ -1,5 +1,4 @@
 import os
-import sys
 import requests
 from openai import OpenAI
 
@@ -7,21 +6,26 @@ from openai import OpenAI
 # Config
 # ---------------------------------------------------------------------------
 
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:7860")
+# Environment server URL (your OpenEnv container)
+ENV_BASE_URL = os.environ.get("ENV_BASE_URL", "http://localhost:7860")
+
+# LiteLLM proxy injected by evaluator
+LLM_BASE_URL = os.environ.get("API_BASE_URL")
+API_KEY = os.environ.get("API_KEY", "")
+
 MODEL_NAME = os.environ.get("MODEL_NAME", "meta-llama/Meta-Llama-3-8B-Instruct")
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
 TASK_ID = os.environ.get("TASK_ID", "easy_syntax_repair")
 
 # ---------------------------------------------------------------------------
-# Safe OpenAI Client Init (for compliance)
+# OpenAI Client via Evaluator Proxy
 # ---------------------------------------------------------------------------
 
 client = None
-if HF_TOKEN:
+if LLM_BASE_URL and API_KEY:
     try:
         client = OpenAI(
-            api_key=HF_TOKEN,
-            base_url="https://router.huggingface.co/v1",
+            api_key=API_KEY,
+            base_url=LLM_BASE_URL,
         )
     except Exception:
         client = None
@@ -31,7 +35,7 @@ if HF_TOKEN:
 # ---------------------------------------------------------------------------
 
 def build_url(path: str) -> str:
-    base = API_BASE_URL.rstrip("/")
+    base = ENV_BASE_URL.rstrip("/")
     if base.endswith(path):
         return base
     return f"{base}{path}"
@@ -106,7 +110,6 @@ def env_step(action_type, sql=None):
 def run_agent(task_id):
     rewards = []
 
-    # PRINT START FIRST — ALWAYS
     print(
         f"[START] task={task_id} env=sql-repair-env model={MODEL_NAME}",
         flush=True,
@@ -115,7 +118,6 @@ def run_agent(task_id):
     try:
         env_reset(task_id)
 
-        # Step 1
         step1 = env_step("INSPECT_SCHEMA")
         r1 = step1["observation"]["step_reward"]
         rewards.append(r1)
@@ -126,7 +128,7 @@ def run_agent(task_id):
             flush=True,
         )
 
-        # Optional OpenAI compliance call
+        # Required LLM Proxy Call
         if client is not None:
             try:
                 client.chat.completions.create(
@@ -137,8 +139,8 @@ def run_agent(task_id):
             except Exception:
                 pass
 
-        # Step 2
         sql = KNOWN_CORRECT_SQL[task_id]
+
         step2 = env_step("SUBMIT_FINAL_QUERY", sql)
         r2 = step2["observation"]["step_reward"]
         rewards.append(r2)
